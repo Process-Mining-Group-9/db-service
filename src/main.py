@@ -1,15 +1,29 @@
-from fastapi import FastAPI, HTTPException
-from pypika import Query, Table, Field
+from fastapi import FastAPI, HTTPException, Request
+from starlette.responses import RedirectResponse
+from pypika import Query, Table
 from mqtt_event import MqttEvent
 from typing import Optional
+from custom_logging import CustomizeLogger
+from pathlib import Path
 import sqlite3 as sqlite
+import logging
 import uvicorn
 import os
 import datetime
 import yaml
 
 config: dict = yaml.safe_load(open('../config.yaml'))
-app: FastAPI = FastAPI()
+logger = logging.getLogger(__name__)
+
+
+def create_app() -> FastAPI:
+    fastapi_app = FastAPI(title='CustomLogger', debug=False)
+    custom_logger = CustomizeLogger.make_logger(Path('../logging_config.json'))
+    fastapi_app.logger = custom_logger
+    return fastapi_app
+
+
+app: FastAPI = create_app()
 
 
 def get_db_connection(name: str, create: bool) -> (sqlite.Connection, sqlite.Cursor):
@@ -26,38 +40,32 @@ def get_db_connection(name: str, create: bool) -> (sqlite.Connection, sqlite.Cur
     return db, c
 
 
-def insert_event(event: MqttEvent, db: sqlite.Connection, c: sqlite.Cursor):
-    events = Table('events')
-    query = Query.into(events).insert(datetime.datetime.utcnow().isoformat(), event.process, event.activity, event.payload)
-    c.execute(str(query))
-    db.commit()
-
-
-def query_events(c: sqlite.Cursor, process: Optional[str] = None, activity: Optional[str] = None) -> list:
-    events = Table('events')
-    query = Query.from_(events).select('*')
-
-    if process:
-        query = query.where(events.process == process)
-
-    if activity:
-        query = query.where(events.activity == activity)
-
-    c.execute(str(query))
-    return c.fetchall()
+@app.get("/")
+async def root(request: Request):
+    # request.app.logger.info('Redirecting to documentation.') # This is how custom logging can be inserted
+    return RedirectResponse(url='/docs')
 
 
 @app.post("/events/add")
-async def add_event(event: MqttEvent):
+async def add_event(request: Request, event: MqttEvent):
     db, c = get_db_connection(event.source, create=True)
-    insert_event(event, db, c)
+    query = Query.into('events').insert(datetime.datetime.utcnow().isoformat(), event.process, event.activity, event.payload)
+    c.execute(str(query))
+    db.commit()
     db.close()
 
 
 @app.get("/events/{log}")
-async def get_events(log: str, process: Optional[str] = None, activity: Optional[str] = None):
+async def get_events(request: Request, log: str, process: Optional[str] = None, activity: Optional[str] = None) -> list:
     db, c = get_db_connection(log, create=False)
-    data = query_events(c, process, activity)
+    events = Table('events')
+    query = Query.from_(events).select('*')
+    if process:
+        query = query.where(events.process == process)
+    if activity:
+        query = query.where(events.activity == activity)
+    c.execute(str(query))
+    data = c.fetchall()
     db.close()
     return data
 
