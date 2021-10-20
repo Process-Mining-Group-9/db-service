@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
-    fastapi_app = FastAPI(title='CustomLogger', debug=False)
+    fastapi_app = FastAPI(title='DbService', debug=False)
     custom_logger = CustomizeLogger.make_logger(Path('../logging_config.json'))
     fastapi_app.logger = custom_logger
     return fastapi_app
