@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from starlette.responses import RedirectResponse
 from pypika import Query, Table
 from mqtt_event import MqttEvent
-from typing import Optional
+from typing import Optional, Tuple
 from custom_logging import CustomizeLogger
 from pathlib import Path
 import sqlite3 as sqlite
@@ -26,7 +26,7 @@ def create_app() -> FastAPI:
 app: FastAPI = create_app()
 
 
-def get_db_connection(name: str, create: bool) -> (sqlite.Connection, sqlite.Cursor):
+def get_db_connection(name: str, create: bool) -> Tuple[sqlite.Connection, sqlite.Cursor]:
     os.makedirs(config['dir'], exist_ok=True)
     db_file = os.path.join(config['dir'], name + '.db')
 

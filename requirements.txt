@@ -1,5 +1,7 @@
 fastapi==0.70.0
 PyYAML==5.4.1
+types-PyYAML==5.4.12
 uvicorn==0.15.0
 PyPika==0.48.8
 loguru==0.5.3
+mypy==0.910
