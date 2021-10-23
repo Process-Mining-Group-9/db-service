@@ -40,14 +40,14 @@ def get_db_connection(name: str, create: bool) -> Tuple[sqlite.Connection, sqlit
     return db, c
 
 
-@app.get("/")
+@app.get('/')
 async def root(request: Request):
     # request.app.logger.info('Redirecting to documentation.') # This is how custom logging can be inserted
     return RedirectResponse(url='/docs')
 
 
-@app.post("/events/add")
-async def add_event(request: Request, event: MqttEvent):
+@app.post('/events/add')
+async def add_event(event: MqttEvent):
     db, c = get_db_connection(event.source, create=True)
     query = Query.into('events').insert(datetime.datetime.utcnow().isoformat(), event.process, event.activity, event.payload)
     c.execute(str(query))
@@ -55,8 +55,17 @@ async def add_event(request: Request, event: MqttEvent):
     db.close()
 
 
-@app.get("/events/{log}")
-async def get_events(request: Request, log: str, process: Optional[str] = None, activity: Optional[str] = None) -> list:
+@app.get('/events')
+async def get_logs() -> list:
+    files = []
+    for file in os.listdir(config['dir']):
+        if file.endswith('.db'):
+            files.append(file.replace('.db', ''))
+    return files
+
+
+@app.get('/events/{log}')
+async def get_events(log: str, process: Optional[str] = None, activity: Optional[str] = None) -> list:
     db, c = get_db_connection(log, create=False)
     events = Table('events')
     query = Query.from_(events).select('*')
