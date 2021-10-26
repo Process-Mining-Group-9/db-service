@@ -1,15 +1,14 @@
 from fastapi import FastAPI, HTTPException, Request
 from starlette.responses import RedirectResponse
 from pypika import Query, Table
-from mqtt_event import MqttEvent
 from typing import Optional, Tuple
 from custom_logging import CustomizeLogger
 from pathlib import Path
+from mqtt_event import MqttEvent, from_dict
 import sqlite3 as sqlite
 import logging
 import uvicorn
 import os
-import datetime
 import yaml
 
 config: dict = yaml.safe_load(open('../config.yaml'))
@@ -26,6 +25,13 @@ def create_app() -> FastAPI:
 app: FastAPI = create_app()
 
 
+def dict_factory(cursor, row):
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
+
+
 def get_db_connection(name: str, create: bool) -> Tuple[sqlite.Connection, sqlite.Cursor]:
     os.makedirs(config['dir'], exist_ok=True)
     db_file = os.path.join(config['dir'], name + '.db')
@@ -34,8 +40,9 @@ def get_db_connection(name: str, create: bool) -> Tuple[sqlite.Connection, sqlit
         raise HTTPException(status_code=404, detail=f'Database with name \'{name}\' not found')
 
     db = sqlite.connect(db_file, timeout=10)
+    db.row_factory = dict_factory
     c = db.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS events (timestamp TEXT, process TEXT, activity TEXT, payload TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS events (timestamp INTEGER, process TEXT, activity TEXT, payload TEXT)')
     db.commit()
     return db, c
 
@@ -49,7 +56,7 @@ async def root(request: Request):
 @app.post('/events/add')
 async def add_event(event: MqttEvent):
     db, c = get_db_connection(event.source, create=True)
-    query = Query.into('events').insert(datetime.datetime.utcnow().isoformat(), event.process, event.activity, event.payload)
+    query = Query.into('events').insert(event.timestamp, event.process, event.activity, event.payload)
     c.execute(str(query))
     db.commit()
     db.close()
@@ -65,16 +72,16 @@ async def get_logs() -> list:
 
 
 @app.get('/events/{log}')
-async def get_events(log: str, process: Optional[str] = None, activity: Optional[str] = None) -> list:
+async def get_events(log: str, process: Optional[str] = None, activity: Optional[str] = None) -> list[MqttEvent]:
     db, c = get_db_connection(log, create=False)
     events = Table('events')
-    query = Query.from_(events).select('*')
+    query = Query.from_(events).select('rowid', 'timestamp', 'process', 'activity', 'payload')
     if process:
         query = query.where(events.process == process)
     if activity:
         query = query.where(events.activity == activity)
     c.execute(str(query))
-    data = c.fetchall()
+    data = [from_dict(row) for row in c.fetchall()]
     db.close()
     return data
 
