@@ -42,7 +42,7 @@ def get_db_connection(name: str, create: bool) -> Tuple[sqlite.Connection, sqlit
     db = sqlite.connect(db_file, timeout=10)
     db.row_factory = dict_factory
     c = db.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS events (timestamp INTEGER, process TEXT, activity TEXT, payload TEXT)')
+    c.execute('CREATE TABLE IF NOT EXISTS events (timestamp REAL, process TEXT, activity TEXT, payload TEXT)')
     db.commit()
     return db, c
 

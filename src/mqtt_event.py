@@ -9,7 +9,7 @@ def from_dict(d: dict):
 
 class MqttEvent(BaseModel):
     rowid: Optional[int] = None
-    timestamp: int
+    timestamp: float
     base: Optional[str] = None
     source: Optional[str] = None
     process: str
