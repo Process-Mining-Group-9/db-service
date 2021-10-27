@@ -54,12 +54,13 @@ async def root(request: Request):
 
 
 @app.post('/events/add')
-async def add_event(event: MqttEvent):
+async def add_event(request: Request, event: MqttEvent):
     db, c = get_db_connection(event.source, create=True)
     query = Query.into('events').insert(event.timestamp, event.process, event.activity, event.payload)
     c.execute(str(query))
     db.commit()
     db.close()
+    request.app.logger.info(f'Inserted event: {event}')
 
 
 @app.get('/events')
