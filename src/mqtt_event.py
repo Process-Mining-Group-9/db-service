@@ -20,5 +20,8 @@ class MqttEvent(BaseModel):
         return {'rowid': self.rowid, 'timestamp': self.timestamp, 'base': self.base, 'source': self.source,
                 'process': self.process, 'activity': self.activity, 'payload': self.payload}
 
+    def to_tuple(self) -> tuple:
+        return self.timestamp, self.process, self.activity, self.payload
+
     def __str__(self) -> str:
         return f'{self.timestamp}: {self.base}/{self.source}/{self.process}/{self.activity}: {self.payload}'
