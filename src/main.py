@@ -61,7 +61,7 @@ async def root():
 @app.on_event('startup')
 @repeat_every(seconds=10, wait_first=True, raise_exceptions=True)
 def insert_queued_events():
-    logging.info(f'Checking queues of outstanding new events to be inserted.')
+    logging.debug(f'Checking queues of outstanding new events to be inserted.')
     for key, queue in new_event_queue.items():
         events: list[Tuple] = []
         while not queue.empty():
