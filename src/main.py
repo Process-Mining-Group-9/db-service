@@ -92,6 +92,7 @@ async def add_event(request: Request, event: MqttEvent):
 async def get_logs() -> list:
     """Get a list of all available event log databases."""
     files = []
+    os.makedirs(config['dir'], exist_ok=True)
     for file in os.listdir(config['dir']):
         if file.endswith('.db'):
             files.append(file.replace('.db', ''))
