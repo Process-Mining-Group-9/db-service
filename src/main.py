@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse
 from fastapi_utils.tasks import repeat_every
 from mqtt_event import MqttEvent, from_dict
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
     fastapi_app = FastAPI(title='DbService', debug=False)
     custom_logger = CustomizeLogger.make_logger()
     fastapi_app.logger = custom_logger
+    fastapi_app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])
     return fastapi_app
 
 
@@ -70,6 +72,9 @@ def insert_queued_events():
 @app.post('/events/add')
 async def add_event(request: Request, event: MqttEvent):
     """Add a new event."""
+    if request.headers['X-Secret'] != os.environ['SECRET']:
+        raise HTTPException(status_code=403, detail=f'Access denied. Secret did not match.')
+
     if not event.source:
         raise HTTPException(status_code=400, detail=f'Source value must be set')
 
