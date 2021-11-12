@@ -72,7 +72,7 @@ def insert_queued_events():
 @app.post('/events/add')
 async def add_event(request: Request, event: MqttEvent):
     """Add a new event."""
-    if request.headers['X-Secret'] != os.environ['SECRET']:
+    if 'X-Secret' not in request.headers.keys() or request.headers['X-Secret'] != os.environ['SECRET']:
         raise HTTPException(status_code=403, detail=f'Access denied. Secret did not match.')
 
     if not event.source:
