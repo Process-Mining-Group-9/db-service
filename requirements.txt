@@ -1,8 +1,8 @@
 fastapi==0.70.0
 fastapi-utils==0.2.1
-PyYAML==6.0
-types-PyYAML==5.4.12
 uvicorn==0.15.0
 PyPika==0.48.8
 loguru==0.5.3
 mypy==0.910
+psycopg[binary]==3.0.3
+gunicorn==20.1.0

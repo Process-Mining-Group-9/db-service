@@ -4,15 +4,14 @@ from fastapi_utils.tasks import repeat_every
 from mqtt_event import MqttEvent, from_dict
 from custom_logging import CustomizeLogger
 from typing import Optional, Tuple, Dict
+from psycopg.rows import dict_row
 from pypika import Query, Table
 from queue import Queue
-import sqlite3 as sqlite
+import psycopg
 import logging
 import uvicorn
-import yaml
 import os
 
-config: dict = yaml.safe_load(open('../config.yaml'))
 logger = logging.getLogger(__name__)
 new_event_queue: Dict[str, Queue[MqttEvent]] = dict()
 
@@ -20,35 +19,26 @@ new_event_queue: Dict[str, Queue[MqttEvent]] = dict()
 def create_app() -> FastAPI:
     """Create a FastAPI instance for this application."""
     fastapi_app = FastAPI(title='DbService', debug=False)
-    custom_logger = CustomizeLogger.make_logger(config['log'])
+    custom_logger = CustomizeLogger.make_logger()
     fastapi_app.logger = custom_logger
     return fastapi_app
-
-
-def dict_factory(cursor, row):
-    """Used by sqlite3 to convert results to dictionaries"""
-    d = {}
-    for idx, col in enumerate(cursor.description):
-        d[col[0]] = row[idx]
-    return d
 
 
 app: FastAPI = create_app()
 
 
-def get_db_connection(name: str, create: bool) -> Tuple[sqlite.Connection, sqlite.Cursor]:
+def get_db_connection(table: Optional[str], create: bool) -> Tuple[psycopg.Connection, psycopg.Cursor]:
     """Create and return a connection and cursor to the specified database, and create it if needed."""
-    os.makedirs(config['dir'], exist_ok=True)
-    db_file = os.path.join(config['dir'], name + '.db')
-
-    if not create and not os.path.isfile(db_file):
-        raise HTTPException(status_code=404, detail=f'Database with name \'{name}\' not found')
-
-    db = sqlite.connect(db_file, timeout=10)
-    db.row_factory = dict_factory
+    db = psycopg.connect(os.environ['DATABASE_URL'], row_factory=dict_row)
     c = db.cursor()
-    c.execute('CREATE TABLE IF NOT EXISTS events (timestamp REAL, process TEXT, activity TEXT, payload TEXT)')
-    db.commit()
+
+    if table:
+        if not create and not bool(c.execute('SELECT * FROM information_schema.tables WHERE table_name=%s', (table,))):
+            raise HTTPException(status_code=404, detail=f'Database with name \'{table}\' not found')
+
+        c.execute(f'CREATE TABLE IF NOT EXISTS {table} (id serial PRIMARY KEY, timestamp REAL, process TEXT, activity TEXT, payload TEXT)')
+        db.commit()
+
     return db, c
 
 
@@ -69,7 +59,7 @@ def insert_queued_events():
         if events:
             try:
                 db, c = get_db_connection(key, create=True)
-                c.executemany('INSERT INTO events (timestamp, process, activity, payload) VALUES (?,?,?,?)', events)
+                c.executemany(f'INSERT INTO {key} (timestamp, process, activity, payload) VALUES (%s,%s,%s,%s)', events)
                 db.commit()
                 db.close()
                 logging.info(f'Inserted {len(events)} new events to the "{key}" database.')
@@ -91,24 +81,21 @@ async def add_event(request: Request, event: MqttEvent):
 @app.get('/events')
 async def get_logs() -> list:
     """Get a list of all available event log databases."""
-    files = []
-    os.makedirs(config['dir'], exist_ok=True)
-    for file in os.listdir(config['dir']):
-        if file.endswith('.db'):
-            files.append(file.replace('.db', ''))
-    return files
+    db, c = get_db_connection(None, create=False)
+    logs = c.execute("SELECT * FROM information_schema.tables WHERE table_schema='public'").fetchall()
+    return [row['table_name'] for row in logs]
 
 
 @app.get('/events/{log}')
 async def get_events(log: str, process: Optional[str] = None, activity: Optional[str] = None) -> list[MqttEvent]:
     """Get all event logs in a specific database, with optional filters."""
     db, c = get_db_connection(log, create=False)
-    events = Table('events')
-    query = Query.from_(events).select('rowid', 'timestamp', 'process', 'activity', 'payload')
+    table = Table(log)
+    query = Query.from_(table).select('id', 'timestamp', 'process', 'activity', 'payload')
     if process:
-        query = query.where(events.process == process)
+        query = query.where(table.process == process)
     if activity:
-        query = query.where(events.activity == activity)
+        query = query.where(table.activity == activity)
     c.execute(str(query))
     data = [from_dict(row) for row in c.fetchall()]
     db.close()
