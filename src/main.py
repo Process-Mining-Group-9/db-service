@@ -38,7 +38,7 @@ def get_db_connection(table: Optional[str], create: bool) -> Tuple[psycopg.Conne
         if not create and not bool(c.execute('SELECT * FROM information_schema.tables WHERE table_name=%s', (table,))):
             raise HTTPException(status_code=404, detail=f'Database with name \'{table}\' not found')
 
-        c.execute(f'CREATE TABLE IF NOT EXISTS {table} (id serial PRIMARY KEY, timestamp REAL, process TEXT, activity TEXT, payload TEXT)')
+        c.execute(f'CREATE TABLE IF NOT EXISTS "{table}" (id serial PRIMARY KEY, timestamp REAL, process TEXT, activity TEXT, payload TEXT)')
         db.commit()
 
     return db, c
@@ -61,7 +61,7 @@ def insert_queued_events():
         if events:
             try:
                 db, c = get_db_connection(key, create=True)
-                c.executemany(f'INSERT INTO {key} (timestamp, process, activity, payload) VALUES (%s,%s,%s,%s)', events)
+                c.executemany(f'INSERT INTO "{key}" (timestamp, process, activity, payload) VALUES (%s,%s,%s,%s)', events)
                 db.commit()
                 db.close()
                 logging.info(f'Inserted {len(events)} new events to the "{key}" database.')
