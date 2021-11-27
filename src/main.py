@@ -7,11 +7,14 @@ from custom_logging import CustomizeLogger
 from typing import Optional, Tuple, Dict
 from psycopg.rows import dict_row
 from pypika import Query, Table
+from dotenv import load_dotenv
 from queue import Queue
 import psycopg
 import logging
 import uvicorn
 import os
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 new_event_queue: Dict[str, Queue[MqttEvent]] = dict()
